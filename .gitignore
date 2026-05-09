@@ -232,3 +232,8 @@ data/ddinter_raw/
 # Sphinx build
 /docs/build/
 /docs/source/api/
+
+# Custom Biomni-Agent Ignores
+biomni_env/
+test_result*.txt
+

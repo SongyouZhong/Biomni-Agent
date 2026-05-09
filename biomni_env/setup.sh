@@ -82,7 +82,7 @@ install_env_file() {
     fi
 
     echo -e "${YELLOW}Installing $description from $env_file...${NC}"
-    conda env update -f $env_file
+    mamba env update -f $env_file
     handle_error $? "Failed to install $description." $optional
 
     if [ $? -eq 0 ]; then
@@ -152,7 +152,7 @@ install_cli_tools() {
 main() {
     # Step 1: Create base conda environment
     echo -e "\n${YELLOW}Step 1: Creating base environment from environment.yml...${NC}"
-    conda env create -n biomni_e1 -f environment.yml
+    mamba env create -n biomni_e1 -f environment.yml
     handle_error $? "Failed to create base conda environment."
 
     # Step 2: Activate the environment

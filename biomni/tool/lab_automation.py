@@ -548,60 +548,49 @@ def _execute_script_safely(script_content: str, timeout_seconds: int) -> dict[st
 
 
 def _run_script_with_monitoring(script_path: str) -> dict[str, Any]:
-    """Run the script and monitor its execution."""
-    # Note: This is a simplified version. In practice, you might want to
-    # use subprocess or other isolation methods for safety
-
+    """Run the script and monitor its execution using the Sandbox CodeExecutor."""
+    import requests
+    
     warnings = []
     summary = {"operations_performed": 0, "tips_used": 0, "liquid_transferred": 0.0}
 
     try:
-        # Read and execute the script
+        # Read the script
         with open(script_path) as f:
             script_content = f.read()
 
-        # Create a namespace for execution
-        namespace = {
-            "__name__": "__main__",
-            "__file__": script_path,
-        }
+        # Add execution logic for main() function so it runs inside the Sandbox
+        execution_tail = """
+import asyncio
+if 'main' in locals() and callable(locals()['main']):
+    if asyncio.iscoroutinefunction(locals()['main']):
+        try:
+            asyncio.get_running_loop()
+            import threading
+            def run_async():
+                asyncio.run(locals()['main']())
+            thread = threading.Thread(target=run_async)
+            thread.start()
+            thread.join()
+        except RuntimeError:
+            asyncio.run(locals()['main']())
+    else:
+        locals()['main']()
+"""
+        full_script = script_content + "\n" + execution_tail
 
-        # Execute the script
-        exec(script_content, namespace)
+        # Send to sandbox execution service
+        response = requests.post(
+            "http://localhost:8081/execute",
+            json={"code": full_script, "reset_namespace": True},
+            timeout=300
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        if not result["success"]:
+            raise Exception(f"Sandbox Error: {result.get('error')}\\nStdout: {result.get('stdout', '')}\\nStderr: {result.get('stderr', '')}")
 
-        # If the script has a main function, run it
-        if "main" in namespace and callable(namespace["main"]):
-            if asyncio.iscoroutinefunction(namespace["main"]):
-                # Run async main function using asyncio.run if not in event loop
-                try:
-                    asyncio.get_running_loop()
-                    # We're in an event loop, create a new thread to run asyncio.run
-                    import threading
-
-                    result = None
-                    exception = None
-
-                    def run_async():
-                        nonlocal result, exception
-                        try:
-                            asyncio.run(namespace["main"]())
-                        except Exception as e:
-                            exception = e
-
-                    thread = threading.Thread(target=run_async)
-                    thread.start()
-                    thread.join()
-
-                    if exception:
-                        raise exception
-                except RuntimeError:
-                    # No event loop running, safe to use asyncio.run
-                    asyncio.run(namespace["main"]())
-            else:
-                namespace["main"]()
-
-        # Execution summary collection can be added here in the future once
-        # PyLabRobot exposes reliable runtime statistics.
     except Exception as e:
         raise Exception(f"Script execution error: {str(e)}") from e
 

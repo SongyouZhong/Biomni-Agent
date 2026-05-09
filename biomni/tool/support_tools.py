@@ -11,37 +11,40 @@ _captured_plots = []
 
 
 def run_python_repl(command: str) -> str:
-    """Executes the provided Python command in a persistent environment and returns the output.
-    Variables defined in one execution will be available in subsequent executions.
+    """Executes the provided Python command in a Sandbox execution environment and returns the output.
+    Variables defined in one execution will be available in subsequent executions in the sandbox.
     """
-
-    def execute_in_repl(command: str) -> str:
-        """Helper function to execute the command in the persistent environment."""
-        old_stdout = sys.stdout
-        sys.stdout = mystdout = StringIO()
-
-        # Use the persistent namespace
-        global _persistent_namespace
-
-        try:
-            # Apply matplotlib monkey patches before execution
-            _apply_matplotlib_patches()
-
-            # Execute the command in the persistent namespace
-            exec(command, _persistent_namespace)
-            output = mystdout.getvalue()
-
-            # Capture any matplotlib plots that were generated
-            # _capture_matplotlib_plots()
-
-        except Exception as e:
-            output = f"Error: {str(e)}"
-        finally:
-            sys.stdout = old_stdout
-        return output
-
+    import requests
+    
     command = command.strip("```").strip()
-    return execute_in_repl(command)
+    global _captured_plots
+    
+    try:
+        response = requests.post(
+            "http://localhost:8081/execute",
+            json={"code": command, "reset_namespace": False},
+            timeout=300
+        )
+        response.raise_for_status()
+        result = response.json()
+        
+        # Sync captured plots from Sandbox
+        if result.get("plots"):
+            for plot in result["plots"]:
+                if plot not in _captured_plots:
+                    _captured_plots.append(plot)
+                    
+        if result["success"]:
+            # stdout and stderr are separated, but typically the agent just expects standard output
+            output = result.get("stdout", "")
+            if result.get("stderr"):
+                output += "\n" + result.get("stderr")
+            return output
+        else:
+            return f"Error: {result.get('error')}\nStdout: {result.get('stdout', '')}\nStderr: {result.get('stderr', '')}"
+            
+    except requests.exceptions.RequestException as e:
+        return f"Error connecting to Sandbox Execution Engine: {str(e)}"
 
 
 def _capture_matplotlib_plots():

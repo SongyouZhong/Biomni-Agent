@@ -1,0 +1,23 @@
+name: biomni_agent
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - pydantic
+      - langchain
+      - langgraph==0.3.18
+      - langchain-openai
+      - langchain-anthropic
+      - langchain-ollama
+      - langchain-community
+      - openai
+      - mcp
+      - tooluniverse
+      - python-dotenv
+      - fastapi
+      - uvicorn
+      - websockets
+      - gradio>=5.0,<6.0
